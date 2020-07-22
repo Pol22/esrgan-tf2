@@ -1,9 +1,7 @@
-from absl import app, flags, logging
-from absl.flags import FLAGS
 import os
 import tensorflow as tf
 
-from modules.models import RRDB_Model, DiscriminatorVGG128
+from modules.models import RRDB_Model, DiscriminatorVGG128, mrUNet
 from modules.lr_scheduler import MultiStepLR
 from modules.losses import (PixelLoss, ContentLoss, DiscriminatorLoss,
                             GeneratorLoss)
@@ -11,22 +9,7 @@ from modules.utils import (load_yaml, load_dataset, ProgressBar,
                            set_memory_growth)
 
 
-flags.DEFINE_string('cfg_path', './configs/esrgan.yaml', 'config file path')
-flags.DEFINE_string('gpu', '0', 'which gpu to use')
-
-
-def main(_):
-    # init
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu
-
-    logger = tf.get_logger()
-    logger.disabled = True
-    logger.setLevel(logging.FATAL)
-    set_memory_growth()
-
-    cfg = load_yaml(FLAGS.cfg_path)
-
+def main():
     # define network
     generator = RRDB_Model(cfg['input_size'], cfg['ch_size'], cfg['network_G'])
     generator.summary(line_length=80)
@@ -152,4 +135,4 @@ def main(_):
 
 
 if __name__ == '__main__':
-    app.run(main)
+    main()

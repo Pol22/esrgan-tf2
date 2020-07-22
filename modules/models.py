@@ -76,6 +76,67 @@ class ResInResDenseBlock(tf.keras.layers.Layer):
         return out * self.res_beta + x
 
 
+def paired_conv(inputs, filters, kernel_size):
+    x = Conv2D(filters, kernel_size, padding='same')(inputs)
+    x = LeakyReLU()(x)
+    x = Conv2D(filters, kernel_size, padding='same')(x)
+    x = LeakyReLU()(x)
+    return x
+
+
+def down_conv(inputs, filters, kernel_size):
+    x_down = Conv2D(
+        filters, kernel_size, strides=(2, 2), padding='same')(inputs)
+    x_down = LeakyReLU()(x_down)
+    return x_down
+
+
+def mrUNet(inputs, kernel_size=3):
+    """https://arxiv.org/pdf/2007.08238v2.pdf"""
+    x = paired_conv(inputs, 256, kernel_size)
+    
+    inputs_x2 = tf.nn.space_to_depth(inputs, 2)
+    x2 = paired_conv(inputs_x2, 128, kernel_size)
+    # downsample x
+    x_down = down_conv(x, 128, kernel_size)
+    x2 = tf.concat([x2, x_down], axis=3)
+    x2 = paired_conv(x2, 128, kernel_size)
+
+    inputs_x4 = tf.nn.space_to_depth(inputs_x2, 2)
+    x4 = paired_conv(inputs_x4, 64, kernel_size)
+    # downsample x2
+    x2_down = down_conv(x2, 64, kernel_size)
+    x4 = tf.concat([x4, x2_down], axis=3)
+    x4 = paired_conv(x4, 64, kernel_size)
+
+    inputs_x8 = tf.nn.space_to_depth(inputs_x4, 2)
+    x8 = paired_conv(inputs_x8, 32, kernel_size)
+    # downsample x4
+    x4_down = down_conv(x4, 32, kernel_size)
+    x8 = tf.concat([x8, x4_down], axis=3)
+    x8 = paired_conv(x8, 32, kernel_size)
+
+    # upsample x8
+    x8_up = tf.nn.depth_to_space(x8, 2)
+    x4 = tf.concat([x4, x8_up], axis=3)
+    x4 = paired_conv(x4, 64, kernel_size)
+
+    # upsample x4
+    x4_up = tf.nn.depth_to_space(x4, 2)
+    x2 = tf.concat([x2, x4_up], axis=3)
+    x2 = paired_conv(x2, 128, kernel_size)
+
+    # upsample x2
+    x2_up = tf.nn.depth_to_space(x2, 2)
+    x = tf.concat([x, x2_up], axis=3)
+    x = paired_conv(x, 256, kernel_size)
+
+    # output 1x1 -> [0, 1]
+    out = Conv2D(3, 1, padding='same', activation='sigmoid')(x)
+    return Model(inputs=inputs, outputs=out)
+
+
+
 def RRDB_Model(size, channels, cfg_net, gc=32, wd=0., name='RRDB_model'):
     """Residual-in-Residual Dense Block based Model """
     nf, nb = cfg_net['nf'], cfg_net['nb']
