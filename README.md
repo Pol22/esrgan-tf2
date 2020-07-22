@@ -3,7 +3,6 @@
 
 ![Star](https://img.shields.io/github/stars/Pol22/esrgan-tf2)
 ![Fork](https://img.shields.io/github/forks/Pol22/esrgan-tf2)
-![License](https://img.shields.io/github/license/Pol22/esrgan-tf2)
 
 :fire: ESRGAN (Enhanced Super-Resolution Generative Adversarial Networks, published in ECCV 2018) implemented in Tensorflow 2.0+. This is an unofficial implementation. :fire:
 

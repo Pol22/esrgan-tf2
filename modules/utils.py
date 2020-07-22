@@ -33,19 +33,16 @@ def set_memory_growth():
             logging.info(e)
 
 
-def load_dataset(cfg, key, shuffle=True, buffer_size=10240):
+def load_dataset(path, size, batch, shuffle=True, buffer_size=10240):
     """load dataset"""
-    dataset_cfg = cfg[key]
-    logging.info("load {} from {}".format(key, dataset_cfg['path']))
     dataset = load_tfrecord_dataset(
-        tfrecord_name=dataset_cfg['path'],
-        batch_size=cfg['batch_size'],
-        gt_size=cfg['gt_size'],
-        scale=cfg['scale'],
+        tfrecord_name=path,
+        batch_size=batch,
+        size=size,
         shuffle=shuffle,
-        using_bin=dataset_cfg['using_bin'],
-        using_flip=dataset_cfg['using_flip'],
-        using_rot=dataset_cfg['using_rot'],
+        using_bin=True,
+        using_flip=True,
+        using_rot=True,
         buffer_size=buffer_size)
     return dataset
 

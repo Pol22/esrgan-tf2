@@ -137,9 +137,10 @@ def mrUNet(inputs, kernel_size=3):
 
 
 
-def RRDB_Model(size, channels, cfg_net, gc=32, wd=0., name='RRDB_model'):
+def RRDB_Model(size, channels, gc=32, wd=0., name='RRDB_model'):
     """Residual-in-Residual Dense Block based Model """
-    nf, nb = cfg_net['nf'], cfg_net['nb']
+    nf = 64
+    nb = 23
     lrelu_f = functools.partial(LeakyReLU, alpha=0.2)
     rrdb_f = functools.partial(ResInResDenseBlock, nf=nf, gc=gc, wd=wd)
     conv_f = functools.partial(Conv2D, kernel_size=3, padding='same',
@@ -158,14 +159,14 @@ def RRDB_Model(size, channels, cfg_net, gc=32, wd=0., name='RRDB_model'):
     fea = fea + trunck
 
     # upsampling
-    size_fea_h = tf.shape(fea)[1] if size is None else size
-    size_fea_w = tf.shape(fea)[2] if size is None else size
-    fea_resize = tf.image.resize(fea, [size_fea_h * 2, size_fea_w * 2],
-                                 method='nearest', name='upsample_nn_1')
-    fea = conv_f(filters=nf, activation=lrelu_f(), name='upconv_1')(fea_resize)
-    fea_resize = tf.image.resize(fea, [size_fea_h * 4, size_fea_w * 4],
-                                 method='nearest', name='upsample_nn_2')
-    fea = conv_f(filters=nf, activation=lrelu_f(), name='upconv_2')(fea_resize)
+    # size_fea_h = tf.shape(fea)[1] if size is None else size
+    # size_fea_w = tf.shape(fea)[2] if size is None else size
+    # fea_resize = tf.image.resize(fea, [size_fea_h * 2, size_fea_w * 2],
+    #                              method='nearest', name='upsample_nn_1')
+    # fea = conv_f(filters=nf, activation=lrelu_f(), name='upconv_1')(fea_resize)
+    # fea_resize = tf.image.resize(fea, [size_fea_h * 4, size_fea_w * 4],
+    #                              method='nearest', name='upsample_nn_2')
+    # fea = conv_f(filters=nf, activation=lrelu_f(), name='upconv_2')(fea_resize)
     fea = conv_f(filters=nf, activation=lrelu_f(), name='conv_hr')(fea)
     out = conv_f(filters=channels, name='conv_last')(fea)
 

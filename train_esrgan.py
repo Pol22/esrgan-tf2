@@ -11,32 +11,40 @@ from modules.utils import (load_yaml, load_dataset, ProgressBar,
 
 def main():
     # define network
-    generator = RRDB_Model(cfg['input_size'], cfg['ch_size'], cfg['network_G'])
+    input_size = 256
+    channels = 3
+    batch = 16
+    niter = 400000
+    generator = RRDB_Model(input_size, channels)
     generator.summary(line_length=80)
-    discriminator = DiscriminatorVGG128(cfg['gt_size'], cfg['ch_size'])
+    discriminator = DiscriminatorVGG128(input_size, channels)
     discriminator.summary(line_length=80)
 
     # load dataset
-    train_dataset = load_dataset(cfg, 'train_dataset', shuffle=False)
+    dataset_path = 'PATH' # TODO
+    train_dataset = load_dataset(
+        dataset_path, input_size, batch, shuffle=False)
 
     # define optimizer
-    learning_rate_G = MultiStepLR(cfg['lr_G'], cfg['lr_steps'], cfg['lr_rate'])
-    learning_rate_D = MultiStepLR(cfg['lr_D'], cfg['lr_steps'], cfg['lr_rate'])
+    learning_rate_G = MultiStepLR(
+        1e-4, [50000, 100000, 200000, 300000], 0.5)
+    learning_rate_D = MultiStepLR(
+        1e-4, [50000, 100000, 200000, 300000], 0.5)
     optimizer_G = tf.keras.optimizers.Adam(learning_rate=learning_rate_G,
-                                           beta_1=cfg['adam_beta1_G'],
-                                           beta_2=cfg['adam_beta2_G'])
+                                           beta_1=0.9,
+                                           beta_2=0.99)
     optimizer_D = tf.keras.optimizers.Adam(learning_rate=learning_rate_D,
-                                           beta_1=cfg['adam_beta1_D'],
-                                           beta_2=cfg['adam_beta2_D'])
+                                           beta_1=0.9,
+                                           beta_2=0.99)
 
     # define losses function
-    pixel_loss_fn = PixelLoss(criterion=cfg['pixel_criterion'])
-    fea_loss_fn = ContentLoss(criterion=cfg['feature_criterion'])
-    gen_loss_fn = GeneratorLoss(gan_type=cfg['gan_type'])
-    dis_loss_fn = DiscriminatorLoss(gan_type=cfg['gan_type'])
+    pixel_loss_fn = PixelLoss(criterion='l1')
+    fea_loss_fn = ContentLoss(criterion='l1')
+    gen_loss_fn = GeneratorLoss(gan_type='ragan')
+    dis_loss_fn = DiscriminatorLoss(gan_type='ragan')
 
     # load checkpoint
-    checkpoint_dir = './checkpoints/' + cfg['sub_name']
+    checkpoint_dir = './checkpoints/esrgan'
     checkpoint = tf.train.Checkpoint(step=tf.Variable(0, name='step'),
                                      optimizer_G=optimizer_G,
                                      optimizer_D=optimizer_D,
@@ -50,18 +58,7 @@ def main():
         print('[*] load ckpt from {} at step {}.'.format(
             manager.latest_checkpoint, checkpoint.step.numpy()))
     else:
-        if cfg['pretrain_name'] is not None:
-            pretrain_dir = './checkpoints/' + cfg['pretrain_name']
-            if tf.train.latest_checkpoint(pretrain_dir):
-                checkpoint.restore(tf.train.latest_checkpoint(pretrain_dir))
-                checkpoint.step.assign(0)
-                print("[*] training from pretrain model {}.".format(
-                    pretrain_dir))
-            else:
-                print("[*] cannot find pretrain model {}.".format(
-                    pretrain_dir))
-        else:
-            print("[*] training from scratch.")
+        print("[*] training from scratch.")
 
     # define training step function
     @tf.function
@@ -75,9 +72,9 @@ def main():
             losses_D = {}
             losses_G['reg'] = tf.reduce_sum(generator.losses)
             losses_D['reg'] = tf.reduce_sum(discriminator.losses)
-            losses_G['pixel'] = cfg['w_pixel'] * pixel_loss_fn(hr, sr)
-            losses_G['feature'] = cfg['w_feature'] * fea_loss_fn(hr, sr)
-            losses_G['gan'] = cfg['w_gan'] * gen_loss_fn(hr_output, sr_output)
+            losses_G['pixel'] = 1e-2 * pixel_loss_fn(hr, sr)
+            losses_G['feature'] = 1.0 * fea_loss_fn(hr, sr)
+            losses_G['gan'] = 5e-3 * gen_loss_fn(hr_output, sr_output)
             losses_D['gan'] = dis_loss_fn(hr_output, sr_output)
             total_loss_G = tf.add_n([l for l in losses_G.values()])
             total_loss_D = tf.add_n([l for l in losses_D.values()])
@@ -94,10 +91,9 @@ def main():
         return total_loss_G, total_loss_D, losses_G, losses_D
 
     # training loop
-    summary_writer = tf.summary.create_file_writer(
-        './logs/' + cfg['sub_name'])
-    prog_bar = ProgressBar(cfg['niter'], checkpoint.step.numpy())
-    remain_steps = max(cfg['niter'] - checkpoint.step.numpy(), 0)
+    summary_writer = tf.summary.create_file_writer('./logs/esrgan')
+    prog_bar = ProgressBar(niter, checkpoint.step.numpy())
+    remain_steps = max(niter - checkpoint.step.numpy(), 0)
 
     for lr, hr in train_dataset.take(remain_steps):
         checkpoint.step.assign_add(1)
@@ -126,7 +122,7 @@ def main():
                 tf.summary.scalar(
                     'learning_rate_D', optimizer_D.lr(steps), step=steps)
 
-        if steps % cfg['save_steps'] == 0:
+        if steps % 5000 == 0:
             manager.save()
             print("\n[*] save ckpt file at {}".format(
                 manager.latest_checkpoint))

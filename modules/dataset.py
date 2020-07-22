@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def _parse_tfrecord(gt_size, scale, using_bin, using_flip, using_rot):
+def _parse_tfrecord(size, using_bin, using_flip, using_rot):
     def parse_tfrecord(tfrecord):
         if using_bin:
             features = {
@@ -29,32 +29,17 @@ def _parse_tfrecord(gt_size, scale, using_bin, using_flip, using_rot):
     return parse_tfrecord
 
 
-def _transform_images(gt_size, scale, using_flip, using_rot):
+def _transform_images(size, using_flip, using_rot):
     def transform_images(lr_img, hr_img):
         lr_img_shape = tf.shape(lr_img)
-        hr_img_shape = tf.shape(hr_img)
-        gt_shape = (gt_size, gt_size, tf.shape(hr_img)[-1])
-        lr_size = int(gt_size / scale)
-        lr_shape = (lr_size, lr_size, tf.shape(lr_img)[-1])
-
-        tf.Assert(
-            tf.reduce_all(hr_img_shape >= gt_shape),
-            ["Need hr_image.shape >= gt_size, got ", hr_img_shape, gt_shape])
-        tf.Assert(
-            tf.reduce_all(hr_img_shape[:-1] == lr_img_shape[:-1] * scale),
-            ["Need hr_image.shape == lr_image.shape * scale, got ",
-             hr_img_shape[:-1], lr_img_shape[:-1] * scale])
-        tf.Assert(
-            tf.reduce_all(hr_img_shape[-1] == lr_img_shape[-1]),
-            ["Need hr_image.shape[-1] == lr_image.shape[-1]], got ",
-             hr_img_shape[-1], lr_img_shape[-1]])
+        gt_shape = (size, size, tf.shape(hr_img)[-1])
 
         # randomly crop
-        limit = lr_img_shape - lr_shape + 1
+        limit = lr_img_shape - gt_shape + 1
         offset = tf.random.uniform(tf.shape(lr_img_shape), dtype=tf.int32,
                                    maxval=tf.int32.max) % limit
-        lr_img = tf.slice(lr_img, offset, lr_shape)
-        hr_img = tf.slice(hr_img, offset * scale, gt_shape)
+        lr_img = tf.slice(lr_img, offset, gt_shape)
+        hr_img = tf.slice(hr_img, offset, gt_shape)
 
         # randomly left-right flip
         if using_flip:
@@ -88,16 +73,16 @@ def _transform_images(gt_size, scale, using_flip, using_rot):
     return transform_images
 
 
-def load_tfrecord_dataset(tfrecord_name, batch_size, gt_size,
-                          scale, using_bin=False, using_flip=False,
+def load_tfrecord_dataset(tfrecord_name, batch_size, size,
+                          using_bin=False, using_flip=False,
                           using_rot=False, shuffle=True, buffer_size=10240):
     """load dataset from tfrecord"""
-    raw_dataset = tf.data.TFRecordDataset(tfrecord_name)
+    raw_dataset = tf.data.TFRecordDataset(tfrecord_name) # TODO fix zip
     raw_dataset = raw_dataset.repeat()
     if shuffle:
         raw_dataset = raw_dataset.shuffle(buffer_size=buffer_size)
     dataset = raw_dataset.map(
-        _parse_tfrecord(gt_size, scale, using_bin, using_flip, using_rot),
+        _parse_tfrecord(size, using_bin, using_flip, using_rot),
         num_parallel_calls=tf.data.experimental.AUTOTUNE)
     dataset = dataset.batch(batch_size, drop_remainder=True)
     dataset = dataset.prefetch(
